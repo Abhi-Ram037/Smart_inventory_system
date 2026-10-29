@@ -321,7 +321,7 @@ def run_application():
         choice = input("Enter your choice: ").strip()
 
         if choice == "0":
-            print("Thank you for using Smart Inventory and Sales Management System!")
+            print("Thank you.")
             break
 
         action = actions.get(choice)
