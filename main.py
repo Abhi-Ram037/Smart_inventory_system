@@ -1,6 +1,7 @@
 from decimal import Decimal, InvalidOperation
+import sqlite3
 
-from database import initialize_database, get_connection
+from database import initialize_database
 from models import Product
 from product_manager import ProductManager
 from supplier_manager import SupplierManager, Supplier
@@ -21,21 +22,33 @@ exporter = ReportExporter()
 
 
 def get_integer(prompt, minimum=None):
-    value = int(input(prompt))
+    while True:
+        try:
+            value = int(input(prompt))
 
-    if minimum is not None and value < minimum:
-        raise ValueError(f"Value must be at least {minimum}.")
+            if minimum is not None and value < minimum:
+                print(f"Please enter a number greater than or equal to {minimum}.")
+                continue
 
-    return value
+            return value
+
+        except ValueError:
+            print("Please enter a valid integer.")
 
 
 def get_decimal(prompt):
-    value = Decimal(input(prompt))
+    while True:
+        try:
+            value = Decimal(input(prompt).strip())
 
-    if not value.is_finite():
-        raise ValueError("Enter a valid number.")
+            if not value.is_finite():
+                print("Please enter a finite number.")
+                continue
 
-    return value
+            return value
+
+        except InvalidOperation:
+            print("Please enter a valid decimal number.")
 
 
 def display_menu():
@@ -68,13 +81,13 @@ def display_menu():
     print("16. Display Invoice")
 
     print("\n--- INVENTORY REPORTS ---")
-    print("17. Low Stock Report")
-    print("18. Out-of-Stock Report")
-    print("19. Inventory Valuation")
-    print("20. Top 5 Best-Selling Products")
-    print("21. Stock Movement History")
+    print("17. Display Low Stock Products")
+    print("18. Display Out-of-Stock Products")
+    print("19. Display Inventory Value")
+    print("20. Display Top-Selling Products")
+    print("21. Display Stock Movement History")
 
-    print("\n--- SALES ANALYTICS ---")
+    print("\n--- BUSINESS ANALYTICS ---")
     print("22. Daily Sales Report")
     print("23. Weekly Sales Report")
     print("24. Monthly Sales Report")
@@ -84,11 +97,13 @@ def display_menu():
     print("28. Category-Wise Sales")
     print("29. Sales by Date Range")
 
-    print("\n--- EXPORT REPORTS ---")
-    print("30. Export Inventory to CSV")
-    print("31. Export Sales to CSV")
+    print("\n--- REPORT EXPORT ---")
+    print("30. Export Inventory Report")
+    print("31. Export Sales Report")
 
-    print("\n0. Exit")
+    print("\n--- ADDITIONAL OPTIONS ---")
+    print("32. Supplier Purchase History")
+    print("0. Exit")
     print("=" * 55)
 
 
@@ -100,7 +115,7 @@ def add_product():
         purchase_price=get_decimal("Enter Purchase Price: "),
         selling_price=get_decimal("Enter Selling Price: "),
         quantity=get_integer("Enter Initial Quantity: ", 0),
-        minimum_stock=get_integer("Enter Minimum Stock: ", 0)
+        minimum_stock=get_integer("Enter Minimum Stock Level: ", 0)
     )
 
     product_manager.add_product(product)
@@ -112,13 +127,12 @@ def search_product():
 
 
 def update_product():
-    product_id = input("Enter Product ID to update: ").strip()
-
+    product_id = input("Enter Product ID to Update: ").strip()
     name = input("Enter New Product Name: ").strip()
     category = input("Enter New Category: ").strip()
     purchase_price = get_decimal("Enter New Purchase Price: ")
     selling_price = get_decimal("Enter New Selling Price: ")
-    minimum_stock = get_integer("Enter New Minimum Stock: ", 0)
+    minimum_stock = get_integer("Enter New Minimum Stock Level: ", 0)
 
     product_manager.update_product(
         product_id,
@@ -131,43 +145,33 @@ def update_product():
 
 
 def delete_product():
-    product_id = input("Enter Product ID to delete: ").strip()
-
-    confirmation = input(
-        f"Are you sure you want to delete {product_id}? (yes/no): "
-    ).strip().lower()
-
-    if confirmation == "yes":
-        product_manager.delete_product(product_id)
-    else:
-        print("Delete operation cancelled.")
+    product_id = input("Enter Product ID to Delete: ").strip()
+    product_manager.delete_product(product_id)
 
 
 def sort_products():
     print("\nSort By:")
-    print("1. Product Name")
-    print("2. Purchase Price")
-    print("3. Selling Price")
-    print("4. Quantity")
+    print("1. Name")
+    print("2. Selling Price")
+    print("3. Stock Quantity")
 
-    choice = input("Enter choice: ").strip()
+    choice = input("Enter Choice: ").strip()
 
     sort_options = {
         "1": "name",
-        "2": "purchase_price",
-        "3": "selling_price",
-        "4": "quantity"
+        "2": "selling_price",
+        "3": "quantity"
     }
 
     if choice not in sort_options:
         print("Invalid sorting option.")
         return
 
-    order = input("Descending order? (yes/no): ").strip().lower()
+    order = input("Descending order? (y/n): ").strip().lower()
 
     product_manager.sort_products(
         sort_by=sort_options[choice],
-        descending=(order == "yes")
+        descending=order == "y"
     )
 
 
@@ -201,6 +205,11 @@ def search_supplier():
     supplier_manager.search_supplier(keyword)
 
 
+def display_supplier_purchase_history():
+    supplier_id = input("Enter Supplier ID: ").strip()
+    supplier_manager.supplier_purchase_history(supplier_id)
+
+
 def create_purchase():
     supplier_id = input("Enter Supplier ID: ").strip()
     items = []
@@ -214,9 +223,9 @@ def create_purchase():
             "quantity": quantity
         })
 
-        more = input("Add another product? (yes/no): ").strip().lower()
+        more = input("Add another product? (y/n): ").strip().lower()
 
-        if more != "yes":
+        if more != "y":
             break
 
     purchase_manager.create_purchase(supplier_id, items)
@@ -239,16 +248,16 @@ def create_sale():
             "quantity": quantity
         })
 
-        more = input("Add another product? (yes/no): ").strip().lower()
+        more = input("Add another product? (y/n): ").strip().lower()
 
-        if more != "yes":
+        if more != "y":
             break
 
-    discount = get_decimal("Enter Discount Amount: Rs. ")
-    tax_rate = get_decimal("Enter Tax Rate Percentage: ")
+    discount = get_decimal("Enter Discount Amount: ")
+    tax_rate = get_decimal("Enter Tax Rate (%): ")
 
     sales_manager.create_sale(
-        items=items,
+        items,
         discount=discount,
         tax_rate=tax_rate
     )
@@ -263,7 +272,10 @@ def sales_by_date_range():
     start_date = input("Enter Start Date (YYYY-MM-DD): ").strip()
     end_date = input("Enter End Date (YYYY-MM-DD): ").strip()
 
-    analytics.display_sales_by_date_range(start_date, end_date)
+    analytics.display_sales_by_date_range(
+        start_date,
+        end_date
+    )
 
 
 def run_application():
@@ -300,36 +312,36 @@ def run_application():
         "28": analytics.display_category_wise_sales,
         "29": sales_by_date_range,
         "30": exporter.export_inventory,
-        "31": exporter.export_sales
+        "31": exporter.export_sales,
+        "32": display_supplier_purchase_history
     }
-
-    print("\nDatabase is ready.")
 
     while True:
         display_menu()
         choice = input("Enter your choice: ").strip()
 
         if choice == "0":
-            print("\nThank you.")
+            print("Thank you for using Smart Inventory and Sales Management System!")
             break
 
         action = actions.get(choice)
 
         if action is None:
-            print("Invalid choice. Please select an option from the menu.")
+            print("Invalid choice. Please select a valid menu option.")
             continue
 
         try:
             action()
+
         except (ValueError, InvalidOperation) as error:
             print(f"Invalid input: {error}")
+
         except sqlite3.Error as error:
             print(f"Database error: {error}")
+
         except Exception as error:
             print(f"An unexpected error occurred: {error}")
 
 
 if __name__ == "__main__":
-    import sqlite3
-
     run_application()
