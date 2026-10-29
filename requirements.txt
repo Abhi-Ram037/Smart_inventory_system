@@ -1,0 +1,3 @@
+# Smart Inventory and Sales Management System
+# Uses Python standard library modules only.
+# No third-party packages are required.
